@@ -11,7 +11,7 @@ export const STAR_HOST_TOOLS: Readonly<Record<StarHost, readonly string[]>> = {
 	grok: ["ask_user_question"],
 	cursor: [],
 	kiro: [],
-	omo: ["ask_question"],
+	omo: ["ask_user_question"],
 	omp: ["ask"],
 	gjc: ["ask"],
 };

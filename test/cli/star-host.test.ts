@@ -33,7 +33,7 @@ describe("optional Star native host boundary", () => {
 		["kimi", "AskUserQuestion", ["node", "/opt/node_modules/@moonshot-ai/kimi-code/dist/main.mjs"]],
 		["claude-code", "AskUserQuestion", ["node", "/opt/node_modules/@anthropic-ai/claude-code/cli.js"]],
 		["grok", "ask_user_question", ["/opt/grok"]],
-		["omo", "ask_question", ["node", "/opt/node_modules/omo-ai/bin/omo.js"]],
+		["omo", "ask_user_question", ["node", "/opt/node_modules/omo-ai/bin/omo.js"]],
 		["omp", "ask", ["/opt/omp"]],
 		["gjc", "ask", ["/opt/gjc", "--thinking", "off"]],
 		["gjc", "ask", ["bun", "/opt/node_modules/@gajae-code/coding-agent/dist/cli.js"]],
@@ -57,7 +57,7 @@ describe("optional Star native host boundary", () => {
 		["kiro", "ask_user", ["kiro-cli", "--no-interactive"]],
 		["codex", "request_user_input", ["codex", "exec", "setup"]],
 		["codex", "request_user_input", ["codex", "app-server"]],
-		["omo", "ask_question", ["omo", "--mode", "rpc"]],
+		["omo", "ask_user_question", ["omo", "--mode", "rpc"]],
 		["omp", "ask", ["omp", "--mode=json"]],
 		["cursor", "AskQuestion", ["cursor-agent", "--output-format", "stream-json"]],
 	] as const)("never treats a headless %s process as answerable", (host, questionTool, argv) => {

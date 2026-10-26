@@ -630,7 +630,7 @@ skill. Discovery is not proof that a native question tool is available.
 | Grok Build | `.grok/skills/` or `.agents/skills/` | `ask_user_question` when exposed; documented in Plan mode |
 | Cursor Agent | `.cursor/skills/` or `.agents/skills/` | Link-only; ACP `cursor/ask_question` is a separate client protocol |
 | Kiro | `.kiro/skills/` | Link-only; MCP elicitation is not a direct native question tool |
-| OMO (oh-my-openagent) | `$OMO_CODING_AGENT_DIR/skills/`, default `~/.omo/agent/skills/` | `ask_question` in interactive sessions |
+| OMO (oh-my-openagent) | `$OMO_CODING_AGENT_DIR/skills/`, default `~/.omo/agent/skills/` | `ask_user_question` when exposed by the interactive native host |
 | OMP (oh-my-pi) | `.omp/skills/` or `$PI_CODING_AGENT_DIR/skills/` | `ask` in interactive sessions |
 | GJC | `.gjc/skills/` | `ask` in interactive sessions |
 
