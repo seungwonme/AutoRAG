@@ -63,6 +63,12 @@ const VALUE_FLAGS = new Set([
 	"permission-mode",
 	"whatsapp-group",
 	"event",
+	"host",
+	"question-tool",
+	"completed",
+	"offer-id",
+	"choice",
+	"question-id",
 ]);
 
 const COMMANDS = [
@@ -82,6 +88,7 @@ const COMMANDS = [
 	"models",
 	"update-check",
 	"automate",
+	"star",
 ] as const;
 type CommandName = (typeof COMMANDS)[number];
 
@@ -101,6 +108,8 @@ Commands:
   init                 Write ~/.autorag/config.json for a local collection
   setup                Probe and configure local runtime and datasources
                        (--search-paths a,b  --workspace DIR  --profile ID  --format json)
+  star guide|prepare|decide
+                       Optional native-host GitHub consent; never prompts on stdin
   refresh              Refresh every configured index; --method narrows the run
   watch                Watch configured roots (or --once for cron/poll tick)
   status               Show corpus freshness and index health
@@ -270,6 +279,10 @@ async function dispatch(command: CommandName, ctx: CommandContext): Promise<numb
 		}
 		case "automate": {
 			return runAutomate(ctx);
+		}
+		case "star": {
+			const { runStar } = await import("./commands/star.ts");
+			return runStar(ctx);
 		}
 	}
 }

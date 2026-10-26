@@ -66,7 +66,7 @@ function autoragInvocations(markdown: string): { command: string; flags: string[
 
 /** Extract one `## <heading>` section body from a markdown document. */
 function section(markdown: string, heading: string): string {
-	const pattern = new RegExp(`^## ${heading}\\s*$([\\s\\S]*?)(?=^## |\\Z)`, "m");
+	const pattern = new RegExp(`^## ${heading}\\s*$([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m");
 	return pattern.exec(markdown)?.[1] ?? "";
 }
 
@@ -126,6 +126,89 @@ describe("parent-agent skill docs", () => {
 		const setup = readSkill("autorag-setup");
 		expect(setup).not.toMatch(/MinSync auto-install is off by default/);
 	});
+
+	it.each(["autorag-setup", "autorag-lite-setup"] as const)(
+		"%s separates CLI-only installation from configuration and full setup",
+		(name) => {
+			const skill = readSkill(name);
+			const workflow = section(skill, "Requested scope workflow");
+			const cliOnly = /1\.([\s\S]*?)(?=\n2\.)/.exec(workflow)?.[1] ?? "";
+			expect(cliOnly).toMatch(/CLI-only installation/);
+			expect(cliOnly).toMatch(/user's explicit\s+source \(package, fork, or checkout\)/);
+			expect(cliOnly).toContain("autorag --version");
+			expect(cliOnly).toContain("autorag --help");
+			expect(cliOnly).toMatch(/do not configure a model,\s+roots, indexes, datasources, schedules, or MCP/);
+			const install = section(
+				skill,
+				name === "autorag-setup" ? "Install the CLI if needed" : "Install the package if needed",
+			);
+			expect(install).toContain("autorag --version");
+			expect(install).toContain("autorag --help");
+			expect(install).toMatch(/For CLI-only installation,[\s\S]*?optional Star step after\s+both checks pass/);
+			const completion = section(skill, "Completion condition");
+			const cliCompletion = completion.split("**Full")[0];
+			expect(cliCompletion).toContain("**CLI-only:**");
+			expect(cliCompletion).toMatch(/No model, roots, indexes, datasources,\s+schedule, or MCP setup is required/);
+			expect(cliCompletion).toContain("Optional Star does not affect completion");
+		},
+	);
+
+	it.each(["autorag-setup", "autorag-lite-setup"] as const)(
+		"%s delegates optional Star only after successful scope without weakening full completion",
+		(name) => {
+			const skill = readSkill(name);
+			const workflow = section(skill, "Requested scope workflow");
+			expect(workflow).toMatch(/After the requested scope succeeds, run `autorag star guide --json`/);
+			expect(workflow).toContain("Never offer Star when the requested work failed");
+			expect(workflow).toMatch(/skip headless, CI, and\s+unsupported sessions/);
+			const support = section(skill, "Star the repository \\(final step\\)");
+			expect(support).toContain("autorag star guide --json");
+			expect(support).toMatch(/link\/skip, not setup failure/);
+			expect(support).toMatch(/never bypass the helper or force an\s+upgrade/);
+			const full = section(skill, "Completion condition").split("**Full")[1] ?? "";
+			expect(full).toMatch(/roots are approved/);
+			expect(full).toMatch(/every datasource has\s+been probed/);
+			expect(full).toContain("dupey");
+			expect(full).toMatch(/schedule/);
+			if (name === "autorag-setup") {
+				expect(full).toMatch(/single-model config is written/);
+				expect(full).toMatch(/live `health`\s+passes/);
+				expect(full).toMatch(/`refresh` builds the requested indexes/);
+				expect(full).toMatch(/one real structured search\s+succeeds/);
+				expect(full).toMatch(/successful MCP discovery and a\s+known-source MCP search/);
+			} else {
+				expect(full).toMatch(/stdio executable are installed/);
+				expect(full).toContain("trusted model-free config is written");
+				expect(full).toMatch(/connect, discover tools, refresh requested\s+indexes/);
+				expect(full).toMatch(/retrieve known source content via\s+MCP/);
+			}
+		},
+	);
+
+	it("keeps successful-search support optional, parent-host owned, and outside machine output", () => {
+		const support = section(readSkill("autorag"), "Optional support after successful search");
+		expect(support).toMatch(
+			/After successfully answering the user's requested search in an interactive\s+parent-agent session/,
+		);
+		expect(support).toContain("optional support");
+		expect(support).toContain("autorag star guide --json");
+		expect(support).toContain("completion scope `search`");
+		expect(support).toContain("not part of retrieval success");
+		expect(support).toMatch(/Skip\s+this step in CI, print\/headless sessions, and machine-only output workflows/);
+		expect(support).toMatch(/Neither `autorag search --json` nor MCP displays a Star question automatically/);
+		expect(support).toMatch(/helper or native question tool is unavailable, finish without asking/);
+		expect(support).toMatch(/without asking,\s+changing setup, or forcing an upgrade/);
+	});
+
+	it.each(["autorag-setup", "autorag-lite-setup", "autorag"] as const)(
+		"%s never teaches direct GitHub Star writes instead of the helper",
+		(name) => {
+			const skill = readSkill(name);
+			expect(skill).toContain("autorag star guide --json");
+			expect(skill).not.toMatch(/gh\s+api[^\n`]*(?:--method(?:\s+|=)PUT|-X\s*PUT)/i);
+			expect(skill).not.toMatch(/(?:curl|fetch\()[^\n]*\/user\/starred\//i);
+		},
+	);
 
 	it("documents search JSON sessionId as debug-only", () => {
 		const json = JSON.parse(renderSearch(searchResponse, { json: true, debug: false })) as {
@@ -281,6 +364,31 @@ describe("parent-agent skill docs", () => {
 			expect(skill).not.toMatch(/autorag models (prefetch|import|verify)/);
 			expect(skill).not.toMatch(/autorag gateway/);
 		}
+	});
+
+	it("keeps moved retrieval knowledge reachable from setup before model or indexing changes", () => {
+		const setup = readSkill("autorag-setup");
+		expect(setup).toMatch(
+			/Before configuring indexing or models, read\s+\[Retrieval configuration\]\(references\/retrieval-configuration\.md\)/,
+		);
+		const reference = readFileSync(
+			join(repoRoot, "skills/autorag-setup/references/retrieval-configuration.md"),
+			"utf8",
+		).replace(/\r\n?/g, "\n");
+		for (const heading of [
+			"Retrieval defaults",
+			"Jev routing and question decomposition (on by default)",
+			"Retrieval and ingest caps",
+			"Refresh safety limits",
+		]) {
+			expect(reference).toContain(`### ${heading}`);
+		}
+		expect(reference).toContain("Qwen/Qwen3-Embedding-0.6B");
+		expect(reference).toContain("1024 dimensions");
+		expect(reference).toContain("queryDecomposition");
+		expect(reference).toContain("mergedEvidenceCeiling");
+		expect(reference).toContain("mass-delete-suppressed");
+		expect(reference).toContain("search-root-unavailable");
 	});
 
 	it("documents autorag setup command and CLI-backed credential ownership", () => {
