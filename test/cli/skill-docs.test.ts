@@ -219,15 +219,25 @@ describe("parent-agent skill docs", () => {
 		expect(support).not.toMatch(/gh auth token|--with-token|\|\| true/);
 	});
 
-	it("offers Yes first and recommended without treating a default as consent", () => {
+	it("offers localized Yes first and recommended without treating a default as consent", () => {
 		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
 		expect(support).toContain("exactly two visible response choices");
-		expect(support).toMatch(/Put `Yes` \(`네`\) first, marked recommended and initially focused/);
-		expect(support).toContain("`Other:` (`기타:`), free text");
+		expect(support).toContain("English reference template, not a fixed output language");
+		expect(support).toMatch(
+			/Localize all user-facing text to the user's language: question, both response labels,\s+recommendation, Other explanation, and all follow-up/,
+		);
+		expect(support).toContain("`Yes` means an explicit affirmative in that language");
+		const reference = support.match(/```text\n([\s\S]*?)```/)?.[1] ?? "";
+		expect(reference).toContain("Would you like to star Marker-Inc-Korea/AutoRAG on github.com as @<login>?");
+		expect(reference).toContain("Use Other for a decline, link request, question, or other free text.");
+		expect(reference.match(/^\s*\d+\./gm)).toHaveLength(2);
+		expect(reference).toMatch(/1\. Yes \(recommended\)\n\s+2\. Other:/);
+		expect(support).toMatch(/Put `Yes` first, marked recommended and initially focused/);
+		expect(support).toContain("`Other:`, free text");
 		expect(support).toContain("`recommended: 0`");
 		expect(support).toMatch(/Reuse an automatic Other input instead of duplicating it/);
 		expect(support).toMatch(/Follow the actual tool contract/);
-		expect(support).toContain("`1. 네 (추천)` and `2. 기타:`");
+		expect(support).toContain("`1. Yes (recommended)` and `2. Other:`");
 		expect(support).toMatch(/Claude Code `AskUserQuestion` and GJC `ask` require at least/);
 		expect(support).toMatch(/Do not call them for this step/);
 		expect(support).toContain("WAIT for a real submitted answer");
