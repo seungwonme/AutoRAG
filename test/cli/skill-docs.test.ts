@@ -1,4 +1,15 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -66,7 +77,7 @@ function autoragInvocations(markdown: string): { command: string; flags: string[
 
 /** Extract one `## <heading>` section body from a markdown document. */
 function section(markdown: string, heading: string): string {
-	const pattern = new RegExp(`^## ${heading}\\s*$([\\s\\S]*?)(?=^## |\\Z)`, "m");
+	const pattern = new RegExp(`^## ${heading}\\s*$([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m");
 	return pattern.exec(markdown)?.[1] ?? "";
 }
 
@@ -125,6 +136,129 @@ describe("parent-agent skill docs", () => {
 		expect(normalizeIndexingConfig({}).minSync.autoInstall).toBe(true);
 		const setup = readSkill("autorag-setup");
 		expect(setup).not.toMatch(/MinSync auto-install is off by default/);
+	});
+
+	it.each(["autorag-setup", "autorag-lite-setup"] as const)(
+		"%s separates CLI-only installation from configuration and full setup",
+		(name) => {
+			const skill = readSkill(name);
+			const workflow = section(skill, "Requested scope workflow");
+			const cliOnly = /1\.([\s\S]*?)(?=\n2\.)/.exec(workflow)?.[1] ?? "";
+			expect(cliOnly).toMatch(/CLI-only installation/);
+			expect(cliOnly).toMatch(/user's explicit\s+source \(package, fork, or checkout\)/);
+			expect(cliOnly).toContain("autorag --version");
+			expect(cliOnly).toContain("autorag --help");
+			expect(cliOnly).toMatch(/do not configure a model,\s+roots, indexes, datasources, schedules, or MCP/);
+			const install = section(
+				skill,
+				name === "autorag-setup" ? "Install the CLI if needed" : "Install the package if needed",
+			);
+			expect(install).toContain("autorag --version");
+			expect(install).toContain("autorag --help");
+			expect(install).toMatch(/For CLI-only installation,[\s\S]*?optional Star step after\s+both checks pass/);
+			const completion = section(skill, "Completion condition");
+			const cliCompletion = completion.split("**Full")[0];
+			expect(cliCompletion).toContain("**CLI-only:**");
+			expect(cliCompletion).toMatch(/No model, roots, indexes, datasources,\s+schedule, or MCP setup is required/);
+			expect(cliCompletion).toContain("Optional Star does not affect completion");
+		},
+	);
+
+	it.each(["autorag-setup", "autorag-lite-setup"] as const)(
+		"%s keeps optional Star outside successful scope and full completion",
+		(name) => {
+			const skill = readSkill(name);
+			const workflow = section(skill, "Requested scope workflow");
+			expect(workflow).toMatch(/After the requested scope succeeds/);
+			const support = section(skill, "Star the repository \\(final step\\)");
+			expect(support.length).toBeGreaterThan(0);
+			const full = section(skill, "Completion condition").split("**Full")[1] ?? "";
+			expect(full).toMatch(/roots are approved/);
+			expect(full).toMatch(/every datasource has\s+been probed/);
+			expect(full).toContain("dupey");
+			expect(full).toMatch(/schedule/);
+			if (name === "autorag-setup") {
+				expect(full).toMatch(/single-model config is written/);
+				expect(full).toMatch(/live `health`\s+passes/);
+				expect(full).toMatch(/`refresh` builds the requested indexes/);
+				expect(full).toMatch(/one real structured search\s+succeeds/);
+				expect(full).toMatch(/successful MCP discovery and a\s+known-source MCP search/);
+			} else {
+				expect(full).toMatch(/stdio executable are installed/);
+				expect(full).toContain("trusted model-free config is written");
+				expect(full).toMatch(/connect, discover tools, refresh requested\s+indexes/);
+				expect(full).toMatch(/retrieve known source content via\s+MCP/);
+			}
+		},
+	);
+
+	it("keeps successful-search support optional, parent-host owned, and outside machine output", () => {
+		const support = section(readSkill("autorag"), "Optional support after successful search");
+		expect(support).toMatch(/interactive/);
+		expect(support).toContain("../autorag-setup/SKILL.md#star-the-repository-final-step");
+		expect(support).toContain("not part of retrieval success");
+		expect(support).toMatch(/CI/);
+		expect(support).toMatch(/headless/);
+		expect(support).toMatch(/machine-only/);
+	});
+
+	it("keeps one optional-support policy reachable from independently copied skills", () => {
+		for (const name of ["autorag-lite-setup", "autorag"] as const) {
+			const skill = readSkill(name);
+			expect(skill).toContain("../autorag-setup/SKILL.md#star-the-repository-final-step");
+			expect(skill).toContain("https://github.com/Marker-Inc-Korea/AutoRAG");
+			expect(skill).not.toMatch(/gh\s+api[^\n`]*--method PUT/);
+		}
+		for (const name of ["autorag-setup", "autorag-lite-setup", "autorag"] as const) {
+			expect(readSkill(name)).not.toMatch(/autorag star|offerId|question-tool|star-state\.json/);
+		}
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toContain("gh api --hostname github.com --method PUT /user/starred/Marker-Inc-Korea/AutoRAG");
+		expect(support).toContain("https://github.com/cli/cli#installation");
+		expect(support).toMatch(/explicit/i);
+		expect(support).not.toMatch(/gh auth token|--with-token|\|\| true/);
+	});
+
+	it("offers localized Yes first and recommended without treating a default as consent", () => {
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toContain("exactly two visible response choices");
+		expect(support).toContain("English reference template, not a fixed output language");
+		expect(support).toMatch(
+			/Localize all user-facing text to the user's language: question, both response labels,\s+recommendation, Other explanation, and all follow-up/,
+		);
+		expect(support).toContain("`Yes` means an explicit affirmative in that language");
+		const reference = support.match(/```text\n([\s\S]*?)```/)?.[1] ?? "";
+		expect(reference).toContain("Would you like to star Marker-Inc-Korea/AutoRAG on github.com as @<login>?");
+		expect(reference).toContain("Use Other for a decline, link request, question, or other free text.");
+		expect(reference.match(/^\s*\d+\./gm)).toHaveLength(2);
+		expect(reference).toMatch(/1\. Yes \(recommended\)\n\s+2\. Other:/);
+		expect(support).toMatch(/Put `Yes` first, marked recommended and initially focused/);
+		expect(support).toContain("`Other:`, free text");
+		expect(support).toContain("`recommended: 0`");
+		expect(support).toMatch(/Reuse an automatic Other input instead of duplicating it/);
+		expect(support).toMatch(/Follow the actual tool contract/);
+		expect(support).toContain("`1. Yes (recommended)` and `2. Other:`");
+		expect(support).toMatch(/Claude Code `AskUserQuestion` and GJC `ask` require at least/);
+		expect(support).toMatch(/Do not call them for this step/);
+		expect(support).toContain("WAIT for a real submitted answer");
+		expect(support).toMatch(/Never infer Yes from the default selection/);
+		expect(support).toMatch(/this Yes is installation\/login approval, not Star consent/);
+		expect(support).not.toMatch(/Offer `Star repository`, `Open link`/);
+		expect(section(readSkill("autorag-setup"), "Requested scope workflow")).toContain(
+			"If this skill was truncated, retrieve",
+		);
+	});
+
+	it("separates human replies from skill replay and skips unknown interaction modes", () => {
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toMatch(/Before any GitHub command or marker write/);
+		expect(support).toContain("machine-only, or unknown interaction modes");
+		expect(support).toMatch(/Replace `<login>` with the account verified in step 2 before displaying it/);
+		expect(support).toContain("END THE TURN after that question");
+		expect(support).toMatch(/skill load\/replay, tool result, system continuation/);
+		expect(support).toContain("Do not answer your own question");
+		expect(support).toMatch(/same account and repository were shown before\s+the answer/);
+		expect(support).toContain("then finish without a Star question");
 	});
 
 	it("documents search JSON sessionId as debug-only", () => {
@@ -283,6 +417,31 @@ describe("parent-agent skill docs", () => {
 		}
 	});
 
+	it("keeps moved retrieval knowledge reachable from setup before model or indexing changes", () => {
+		const setup = readSkill("autorag-setup");
+		expect(setup).toMatch(
+			/Before configuring indexing or models, read\s+\[Retrieval configuration\]\(references\/retrieval-configuration\.md\)/,
+		);
+		const reference = readFileSync(
+			join(repoRoot, "skills/autorag-setup/references/retrieval-configuration.md"),
+			"utf8",
+		).replace(/\r\n?/g, "\n");
+		for (const heading of [
+			"Retrieval defaults",
+			"Jev routing and question decomposition (on by default)",
+			"Retrieval and ingest caps",
+			"Refresh safety limits",
+		]) {
+			expect(reference).toContain(`### ${heading}`);
+		}
+		expect(reference).toContain("Qwen/Qwen3-Embedding-0.6B");
+		expect(reference).toContain("1024 dimensions");
+		expect(reference).toContain("queryDecomposition");
+		expect(reference).toContain("mergedEvidenceCeiling");
+		expect(reference).toContain("mass-delete-suppressed");
+		expect(reference).toContain("search-root-unavailable");
+	});
+
 	it("documents autorag setup command and CLI-backed credential ownership", () => {
 		const setup = readSkill("autorag-setup");
 		expect(setup).toContain("autorag setup");
@@ -291,5 +450,95 @@ describe("parent-agent skill docs", () => {
 		const mainSkill = readSkill("autorag");
 		expect(mainSkill).toContain("autorag setup --format json");
 		expect(mainSkill).not.toMatch(/autorag gateway/);
+	});
+});
+
+describe("optional-support marker from the shipped skill", () => {
+	function isolated(
+		run: (fixture: { home: string; markerHome: string; claim: (overrides?: NodeJS.ProcessEnv) => string }) => void,
+	): void {
+		const root = mkdtempSync(join(tmpdir(), "autorag-support-skill-"));
+		try {
+			const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+			const snippets = [...support.matchAll(/```javascript\r?\n([\s\S]*?)```/g)];
+			expect(snippets).toHaveLength(1);
+			const script = join(root, "claim.mjs");
+			writeFileSync(script, snippets[0][1]);
+			const home = join(root, "home");
+			const markerHome = join(root, "autorag");
+			mkdirSync(home);
+			const claim = (overrides: NodeJS.ProcessEnv = {}): string => {
+				const child = spawnSync(process.execPath, [script], {
+					cwd: root,
+					encoding: "utf8",
+					timeout: 5000,
+					env: {
+						HOME: home,
+						USERPROFILE: home,
+						AUTORAG_HOME: markerHome,
+						AUTORAG_CONFIG: join(markerHome, "config.json"),
+						PATH: root,
+						SystemRoot: process.env.SystemRoot,
+						WINDIR: process.env.WINDIR,
+						...overrides,
+					},
+				});
+				expect(child.error).toBeUndefined();
+				expect(child.status).toBe(0);
+				expect(child.stderr).toBe("");
+				return child.stdout.trim();
+			};
+			run({ home, markerHome, claim });
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	}
+
+	it("claims once before an answer without touching an existing AutoRAG config", () => {
+		isolated(({ markerHome, claim }) => {
+			mkdirSync(markerHome);
+			const config = join(markerHome, "config.json");
+			writeFileSync(config, '{"keep":"unchanged"}\n');
+			expect(claim()).toBe("ask");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(config, "utf8")).toBe('{"keep":"unchanged"}\n');
+			expect(readdirSync(markerHome).sort()).toEqual(["config.json", "star-prompted"]);
+		});
+	});
+
+	it("preserves an existing marker rather than resetting a prior decline", () => {
+		isolated(({ markerHome, claim }) => {
+			mkdirSync(markerHome);
+			const marker = join(markerHome, "star-prompted");
+			writeFileSync(marker, "declined\n");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(marker, "utf8")).toBe("declined\n");
+		});
+	});
+
+	it.each([{ CI: "" }, { CI: "false" }, { AUTORAG_NO_STAR: "" }, { AUTORAG_NO_STAR: "0" }])(
+		"does not create state when an opt-out variable is present: %o",
+		(overrides) => {
+			isolated(({ markerHome, claim }) => {
+				expect(claim(overrides)).toBe("skip");
+				expect(existsSync(markerHome)).toBe(false);
+			});
+		},
+	);
+
+	it("skips a storage error without replacing the conflicting file", () => {
+		isolated(({ markerHome, claim }) => {
+			writeFileSync(markerHome, "not a directory\n");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(markerHome, "utf8")).toBe("not a directory\n");
+		});
+	});
+
+	it("shares the default home marker across fresh processes", () => {
+		isolated(({ home, claim }) => {
+			expect(claim({ AUTORAG_HOME: undefined })).toBe("ask");
+			expect(claim({ AUTORAG_HOME: undefined })).toBe("skip");
+			expect(existsSync(join(home, ".autorag", "star-prompted"))).toBe(true);
+		});
 	});
 });
