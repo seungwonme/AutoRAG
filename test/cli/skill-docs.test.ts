@@ -219,6 +219,38 @@ describe("parent-agent skill docs", () => {
 		expect(support).not.toMatch(/gh auth token|--with-token|\|\| true/);
 	});
 
+	it("offers Yes first and recommended without treating a default as consent", () => {
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toContain("exactly two visible response choices");
+		expect(support).toMatch(/Put `Yes` \(`네`\) first, marked recommended and initially focused/);
+		expect(support).toContain("`Other:` (`기타:`), free text");
+		expect(support).toContain("`recommended: 0`");
+		expect(support).toMatch(/Reuse an automatic Other input instead of duplicating it/);
+		expect(support).toMatch(/Follow the actual tool contract/);
+		expect(support).toContain("`1. 네 (추천)` and `2. 기타:`");
+		expect(support).toMatch(/Claude Code `AskUserQuestion` and GJC `ask` require at least/);
+		expect(support).toMatch(/Do not call them for this step/);
+		expect(support).toContain("WAIT for a real submitted answer");
+		expect(support).toMatch(/Never infer Yes from the default selection/);
+		expect(support).toMatch(/this Yes is installation\/login approval, not Star consent/);
+		expect(support).not.toMatch(/Offer `Star repository`, `Open link`/);
+		expect(section(readSkill("autorag-setup"), "Requested scope workflow")).toContain(
+			"If this skill was truncated, retrieve",
+		);
+	});
+
+	it("separates human replies from skill replay and skips unknown interaction modes", () => {
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toMatch(/Before any GitHub command or marker write/);
+		expect(support).toContain("machine-only, or unknown interaction modes");
+		expect(support).toMatch(/Replace `<login>` with the account verified in step 2 before displaying it/);
+		expect(support).toContain("END THE TURN after that question");
+		expect(support).toMatch(/skill load\/replay, tool result, system continuation/);
+		expect(support).toContain("Do not answer your own question");
+		expect(support).toMatch(/same account and repository were shown before\s+the answer/);
+		expect(support).toContain("then finish without a Star question");
+	});
+
 	it("documents search JSON sessionId as debug-only", () => {
 		const json = JSON.parse(renderSearch(searchResponse, { json: true, debug: false })) as {
 			sessionId?: string;
