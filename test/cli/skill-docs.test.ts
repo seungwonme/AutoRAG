@@ -1,4 +1,15 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -154,17 +165,13 @@ describe("parent-agent skill docs", () => {
 	);
 
 	it.each(["autorag-setup", "autorag-lite-setup"] as const)(
-		"%s delegates optional Star only after successful scope without weakening full completion",
+		"%s keeps optional Star outside successful scope and full completion",
 		(name) => {
 			const skill = readSkill(name);
 			const workflow = section(skill, "Requested scope workflow");
-			expect(workflow).toMatch(/After the requested scope succeeds, run `autorag star guide --json`/);
-			expect(workflow).toContain("Never offer Star when the requested work failed");
-			expect(workflow).toMatch(/skip headless, CI, and\s+unsupported sessions/);
+			expect(workflow).toMatch(/After the requested scope succeeds/);
 			const support = section(skill, "Star the repository \\(final step\\)");
-			expect(support).toContain("autorag star guide --json");
-			expect(support).toMatch(/link\/skip, not setup failure/);
-			expect(support).toMatch(/never bypass the helper or force an\s+upgrade/);
+			expect(support.length).toBeGreaterThan(0);
 			const full = section(skill, "Completion condition").split("**Full")[1] ?? "";
 			expect(full).toMatch(/roots are approved/);
 			expect(full).toMatch(/every datasource has\s+been probed/);
@@ -187,28 +194,30 @@ describe("parent-agent skill docs", () => {
 
 	it("keeps successful-search support optional, parent-host owned, and outside machine output", () => {
 		const support = section(readSkill("autorag"), "Optional support after successful search");
-		expect(support).toMatch(
-			/After successfully answering the user's requested search in an interactive\s+parent-agent session/,
-		);
-		expect(support).toContain("optional support");
-		expect(support).toContain("autorag star guide --json");
-		expect(support).toContain("completion scope `search`");
+		expect(support).toMatch(/interactive/);
+		expect(support).toContain("../autorag-setup/SKILL.md#star-the-repository-final-step");
 		expect(support).toContain("not part of retrieval success");
-		expect(support).toMatch(/Skip\s+this step in CI, print\/headless sessions, and machine-only output workflows/);
-		expect(support).toMatch(/Neither `autorag search --json` nor MCP displays a Star question automatically/);
-		expect(support).toMatch(/helper or native question tool is unavailable, finish without asking/);
-		expect(support).toMatch(/without asking,\s+changing setup, or forcing an upgrade/);
+		expect(support).toMatch(/CI/);
+		expect(support).toMatch(/headless/);
+		expect(support).toMatch(/machine-only/);
 	});
 
-	it.each(["autorag-setup", "autorag-lite-setup", "autorag"] as const)(
-		"%s never teaches direct GitHub Star writes instead of the helper",
-		(name) => {
+	it("keeps one optional-support policy reachable from independently copied skills", () => {
+		for (const name of ["autorag-lite-setup", "autorag"] as const) {
 			const skill = readSkill(name);
-			expect(skill).toContain("autorag star guide --json");
-			expect(skill).not.toMatch(/gh\s+api[^\n`]*(?:--method(?:\s+|=)PUT|-X\s*PUT)/i);
-			expect(skill).not.toMatch(/(?:curl|fetch\()[^\n]*\/user\/starred\//i);
-		},
-	);
+			expect(skill).toContain("../autorag-setup/SKILL.md#star-the-repository-final-step");
+			expect(skill).toContain("https://github.com/Marker-Inc-Korea/AutoRAG");
+			expect(skill).not.toMatch(/gh\s+api[^\n`]*--method PUT/);
+		}
+		for (const name of ["autorag-setup", "autorag-lite-setup", "autorag"] as const) {
+			expect(readSkill(name)).not.toMatch(/autorag star|offerId|question-tool|star-state\.json/);
+		}
+		const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+		expect(support).toContain("gh api --hostname github.com --method PUT /user/starred/Marker-Inc-Korea/AutoRAG");
+		expect(support).toContain("https://github.com/cli/cli#installation");
+		expect(support).toMatch(/explicit/i);
+		expect(support).not.toMatch(/gh auth token|--with-token|\|\| true/);
+	});
 
 	it("documents search JSON sessionId as debug-only", () => {
 		const json = JSON.parse(renderSearch(searchResponse, { json: true, debug: false })) as {
@@ -399,5 +408,95 @@ describe("parent-agent skill docs", () => {
 		const mainSkill = readSkill("autorag");
 		expect(mainSkill).toContain("autorag setup --format json");
 		expect(mainSkill).not.toMatch(/autorag gateway/);
+	});
+});
+
+describe("optional-support marker from the shipped skill", () => {
+	function isolated(
+		run: (fixture: { home: string; markerHome: string; claim: (overrides?: NodeJS.ProcessEnv) => string }) => void,
+	): void {
+		const root = mkdtempSync(join(tmpdir(), "autorag-support-skill-"));
+		try {
+			const support = section(readSkill("autorag-setup"), "Star the repository \\(final step\\)");
+			const snippets = [...support.matchAll(/```javascript\r?\n([\s\S]*?)```/g)];
+			expect(snippets).toHaveLength(1);
+			const script = join(root, "claim.mjs");
+			writeFileSync(script, snippets[0][1]);
+			const home = join(root, "home");
+			const markerHome = join(root, "autorag");
+			mkdirSync(home);
+			const claim = (overrides: NodeJS.ProcessEnv = {}): string => {
+				const child = spawnSync(process.execPath, [script], {
+					cwd: root,
+					encoding: "utf8",
+					timeout: 5000,
+					env: {
+						HOME: home,
+						USERPROFILE: home,
+						AUTORAG_HOME: markerHome,
+						AUTORAG_CONFIG: join(markerHome, "config.json"),
+						PATH: root,
+						SystemRoot: process.env.SystemRoot,
+						WINDIR: process.env.WINDIR,
+						...overrides,
+					},
+				});
+				expect(child.error).toBeUndefined();
+				expect(child.status).toBe(0);
+				expect(child.stderr).toBe("");
+				return child.stdout.trim();
+			};
+			run({ home, markerHome, claim });
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	}
+
+	it("claims once before an answer without touching an existing AutoRAG config", () => {
+		isolated(({ markerHome, claim }) => {
+			mkdirSync(markerHome);
+			const config = join(markerHome, "config.json");
+			writeFileSync(config, '{"keep":"unchanged"}\n');
+			expect(claim()).toBe("ask");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(config, "utf8")).toBe('{"keep":"unchanged"}\n');
+			expect(readdirSync(markerHome).sort()).toEqual(["config.json", "star-prompted"]);
+		});
+	});
+
+	it("preserves an existing marker rather than resetting a prior decline", () => {
+		isolated(({ markerHome, claim }) => {
+			mkdirSync(markerHome);
+			const marker = join(markerHome, "star-prompted");
+			writeFileSync(marker, "declined\n");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(marker, "utf8")).toBe("declined\n");
+		});
+	});
+
+	it.each([{ CI: "" }, { CI: "false" }, { AUTORAG_NO_STAR: "" }, { AUTORAG_NO_STAR: "0" }])(
+		"does not create state when an opt-out variable is present: %o",
+		(overrides) => {
+			isolated(({ markerHome, claim }) => {
+				expect(claim(overrides)).toBe("skip");
+				expect(existsSync(markerHome)).toBe(false);
+			});
+		},
+	);
+
+	it("skips a storage error without replacing the conflicting file", () => {
+		isolated(({ markerHome, claim }) => {
+			writeFileSync(markerHome, "not a directory\n");
+			expect(claim()).toBe("skip");
+			expect(readFileSync(markerHome, "utf8")).toBe("not a directory\n");
+		});
+	});
+
+	it("shares the default home marker across fresh processes", () => {
+		isolated(({ home, claim }) => {
+			expect(claim({ AUTORAG_HOME: undefined })).toBe("ask");
+			expect(claim({ AUTORAG_HOME: undefined })).toBe("skip");
+			expect(existsSync(join(home, ".autorag", "star-prompted"))).toBe(true);
+		});
 	});
 });

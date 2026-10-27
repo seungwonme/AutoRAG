@@ -25,10 +25,7 @@ Use `autorag-setup` instead when the model-backed librarian must be configured.
 2. For full Lite setup, follow the remaining sections and full completion
    condition, including a connected MCP host and known-source MCP search.
    CLI checks alone do not complete full Lite setup; no search model is needed.
-3. After the requested scope succeeds, run `autorag star guide --json` and
-   follow its returned workflow. Its native host candidates are not proof that
-   this session has an interactive question tool; skip headless, CI, and
-   unsupported sessions. Never offer Star when the requested work failed.
+3. After the requested scope succeeds, follow the optional Star step below.
 
 ## Safety
 
@@ -42,10 +39,6 @@ Use `autorag-setup` instead when the model-backed librarian must be configured.
 - Do not index system trees, app bundles, caches, credential stores,
   `node_modules`, `.git`, `dist`, `build`, `target`, `.cache`, `.autorag`, or
   `.jikji`.
-- For Star, ask only on helper `action=ask` through an actual native structured
-  question tool, and require its actual answer. Do not substitute prose or
-  terminal stdin, prefer an option, start new authentication, or write through
-  `gh` directly. The guide owns the shared consent and decision policy.
 
 ## Install the package if needed
 
@@ -291,11 +284,12 @@ terminal maintenance.
 
 ## Star the repository (final step)
 
-After requested completion, follow `autorag star guide --json` as directed in
-Requested scope workflow. Missing `gh`, authentication, or API failures mean
-link/skip, not setup failure. If the installed CLI lacks the helper, show
-https://github.com/Marker-Inc-Korea/AutoRAG; never bypass the helper or force an
-upgrade just to solicit Star. Report the actual outcome without repeating it.
+After requested success in an interactive, human-facing session, read and
+follow the [shared Star workflow](../autorag-setup/SKILL.md#star-the-repository-final-step).
+Skip CI, print/headless, and machine-only sessions, or when `CI` or
+`AUTORAG_NO_STAR` is present. If the sibling skill is unavailable, just show
+https://github.com/Marker-Inc-Korea/AutoRAG; do not guess the workflow, install
+another skill, or force an upgrade. Optional support never changes setup success.
 
 ## Completion condition
 

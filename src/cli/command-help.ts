@@ -28,26 +28,6 @@ function usage(lines: readonly string[]): string {
 }
 
 const COMMAND_USAGE: Readonly<Record<Exclude<CommandName, "lite">, string>> = {
-	star: usage([
-		"autorag star - optional native-host GitHub consent",
-		"",
-		"Usage: autorag star guide --json",
-		"       autorag star prepare --completed cli|setup|search --host <host> --question-tool <tool> --json",
-		"       autorag star decide --offer-id <id> --choice star|no|link|dismiss --question-id <id> --question-tool <tool> --host <host> --json",
-		"",
-		"Run only after the user's requested scope succeeds. guide and prepare check the actual",
-		"parent harness and skips print/headless/unknown hosts; it never waits on stdin.",
-		"If action=ask, the host must call its native question tool and wait for the",
-		"actual answer. Only an explicit Star repository authorizes choice=star.",
-		"A native answer and matching correlation ID/tool are required; IDs do not prove consent.",
-		"Installing with --yes is not consent. See guide for host capability limitations.",
-		"A gh credential snapshot stays only in memory/child env, never logs or state.",
-		"Only Marker-Inc-Korea/AutoRAG is targeted.",
-		"An offer is recorded before asking and consumed before any account write.",
-		"State: $AUTORAG_HOME/star-state.json (default ~/.autorag/star-state.json).",
-		"Set AUTORAG_NO_STAR=1 to disable. Optional failures never change install success.",
-		"This command always returns JSON; it does not install skills or modify host settings.",
-	]),
 	init: usage([
 		"autorag init - write the local AutoRAG config",
 		"",

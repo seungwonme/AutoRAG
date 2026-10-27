@@ -261,8 +261,8 @@ For an agent-assisted install, use [`autorag-setup`](skills/autorag-setup/SKILL.
 Respect the requested scope and package source: **CLI-only** ends after the
 install, `autorag --version`, and `autorag --help`. Model configuration, document
 indexing, and MCP registration are separate requests. After success, an
-interactive agent can read `autorag star guide --json` for the optional native
-question protocol; an install flag such as `--yes` never grants Star consent.
+interactive agent may follow the [optional Star workflow](skills/autorag-setup/SKILL.md#star-the-repository-final-step);
+optional support never affects installation success.
 
 ### System Prerequisites
 
@@ -619,32 +619,27 @@ do not copy them into another agent.
 
 Copy the same portable skill folder to the host's discovery directory and
 reload that session. Updating the package does not update an earlier copied
-skill. Discovery is not proof that a native question tool is available.
+skill. These are discovery locations, not a platform-coverage guarantee or a
+contract for question-tool names.
 
-| Host | Skill directory | Optional native question adapter |
-|---|---|---|
-| Claude Code | `.claude/skills/` | `AskUserQuestion` in interactive sessions |
-| Codex | `.agents/skills/` | `request_user_input`; only when the default-mode feature was already explicitly enabled at launch |
-| Kimi | Directory selected by `--skills-dir` | `AskUserQuestion` only with verifiable ancestry; versions that rewrite argv to `kimi-code` skip |
-| AGY (Antigravity CLI) | `.agents/skills/` | Link-only; model-tool identifier not verified |
-| Grok Build | `.grok/skills/` or `.agents/skills/` | `ask_user_question` when exposed; documented in Plan mode |
-| Cursor Agent | `.cursor/skills/` or `.agents/skills/` | Link-only; ACP `cursor/ask_question` is a separate client protocol |
-| Kiro | `.kiro/skills/` | Link-only; MCP elicitation is not a direct native question tool |
-| OMO (oh-my-openagent) | `$OMO_CODING_AGENT_DIR/skills/`, default `~/.omo/agent/skills/` | `ask_user_question` when exposed by the interactive native host |
-| OMP (oh-my-pi) | `.omp/skills/` or `$PI_CODING_AGENT_DIR/skills/` | `ask` in interactive sessions |
-| GJC | `.gjc/skills/` | `ask` in interactive sessions |
+| Host | Skill directory |
+|---|---|
+| Claude Code | `.claude/skills/` |
+| Codex | `.agents/skills/` |
+| Kimi | Directory selected by `--skills-dir` |
+| AGY (Antigravity CLI) | `.agents/skills/` |
+| Grok Build | `.grok/skills/` or `.agents/skills/` |
+| Cursor Agent | `.cursor/skills/` or `.agents/skills/` |
+| Kiro | `.kiro/skills/` |
+| OMO (oh-my-openagent) | `$OMO_CODING_AGENT_DIR/skills/`, default `~/.omo/agent/skills/` |
+| OMP (oh-my-pi) | `.omp/skills/` or `$PI_CODING_AGENT_DIR/skills/` |
+| GJC | `.gjc/skills/` |
 
-These are adapter boundaries, not a claim that every version, provider, or
-mode has been executed. Discover the tool and schema before preparing an offer;
-never change host modes or permissions just to request a Star. Print/headless,
-CI, unknown ancestry, and unsupported platforms skip. Kiro custom agents must
-include skills via `skill://` resources. The helper never installs host plugins
-or changes their configuration. See [Codex skills](https://developers.openai.com/codex/skills),
-[Cursor ACP](https://cursor.com/docs/cli/acp), [Kiro tools](https://kiro.dev/docs/tools/),
-[AGY skills](https://antigravity.google/docs/skills?tab=cli),
-[Grok Plan mode](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/19-plan-mode.md),
-[OMO installation](https://github.com/code-yeongyu/oh-my-openagent/blob/v5.1.48/docs/guide/installation.md),
-and [OMP ask](https://github.com/can1357/oh-my-pi/blob/v18.12.6/docs/tools/ask.md).
+Kiro custom agents include skills via `skill://` resources. Lite and search
+skills link to the shared Star instructions in a sibling `autorag-setup` skill.
+Copying only Lite remains supported: without that sibling, optional support
+falls back to the [repository link](https://github.com/Marker-Inc-Korea/AutoRAG),
+not a forced skill installation or upgrade.
 
 ### Quick Agent Workflow
 
@@ -667,24 +662,13 @@ and [OMP ask](https://github.com/can1357/oh-my-pi/blob/v18.12.6/docs/tools/ask.m
    - AutoRAG writes index artifacts into `<workspace>/.autorag/` and Jikji's central store (`<OS data dir>/jikji/`, override with `JIKJI_DATA_DIR`). Jikji also drops a `.jikji_agent_map.md` guide into each indexed root.
    - Never print or leak API keys, tokens, or credential values into stdout or logs.
 
-5. **Optional support after requested success:** follow `autorag star guide --json`.
-   `guide` checks the host without touching GitHub or shared state; unsupported
-   or headless sessions receive only a stop instruction. `prepare_required`
-   is not permission to ask. Only `prepare` returning `action=ask` permits a
-   question; display its returned wording and `[offer:<offerId>]` label verbatim.
-   The host owns the native question and its actual answer; `prepare` records
-   an offer before it appears and `decide` consumes explicit consent before
-   any GitHub write. Choices are **Star repository**, **No thanks**, and
-   **Show link only**, without a recommendation. No response means no write.
-   State is shared across installations and hosts at
-   `$AUTORAG_HOME/star-state.json` (default `~/.autorag/star-state.json`).
-   Prior attempts, including interrupted questions and declines, suppress
-   another offer. IDs correlate the answer; they do not authenticate consent.
-   Set `AUTORAG_NO_STAR=1` to disable. Never reset state, run a direct Star PUT,
-   force login, or upgrade just for this step. Missing helpers/native UI get
-   only <https://github.com/Marker-Inc-Korea/AutoRAG> in a human-facing response.
-   Failure or refusal never changes installation/search success. No postinstall,
-   TUI, JSON-search, or MCP hook asks automatically.
+5. **Optional support after requested success:** the [shared Star workflow](skills/autorag-setup/SKILL.md#star-the-repository-final-step)
+   uses a tiny once-only marker and waits for explicit consent before any
+   GitHub account write. Missing `gh` or login defaults to a warm manual link,
+   not an automatic install or sign-in. This is cooperative guidance, not an
+   authenticated consent authority. Refusal or failure never changes
+   installation/search success; no postinstall, TUI, JSON-search, or MCP hook
+   asks automatically.
 
 ---
 
